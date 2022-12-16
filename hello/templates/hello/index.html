@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!-- Font -->
+        <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet"/>
+        <!-- AJAX -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <!-- Data table -->
+        <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.1/css/jquery.dataTables.css">
+        <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.13.1/js/jquery.dataTables.js"></script>
+        <script src="https://cdn.datatables.net/plug-ins/1.13.1/sorting/numeric-comma.js"></script>
+        <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+        <script src="https://cdn.datatables.net/1.13.1/js/jquery.dataTables.min.js"></script>
+
+        <meta charset="utf-8" />
+        <title>Drone tracking</title>
+    </head>
+    <body style="font-family: 'Press Start 2P';">
+
+        <h1>Latest drone sightings</h1>
+
+        <table id="drone-table" class="display">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Currently in NDZ</th>
+                    <th>Minutes since last violation</th>
+                    <th>Closest distance to nest (m)</th> 
+                    <th>Serial number</th>
+                  </tr>
+            </thead>
+            <tbody id="drone-table-body">
+
+            </tbody>
+        </table>
+        <script>
+            // Child row HTML
+            function format(d) {
+                return (
+                    '<table cellpadding="5" cellspacing="0" border="0" style="padding-left:50px;">' +
+                    '<tr>' +
+                    '<td>Pilot name:</td>' +
+                    '<td>' +
+                    d['pilotName'] +
+                    '</td>' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>Phone:</td>' +
+                    '<td>' +
+                    d['pilotPhone'] +
+                    '</td>' +
+                    '</tr>' +
+                    '<tr>' +
+                    '<td>Email:</td>' +
+                    '<td>' +
+                    d['pilotEmail'] +
+                    '</td>' +
+                    '</tr>' +
+                    '</table>'
+                );
+            }
+
+            // Executed when document loaded
+            $(document).ready(function(){
+                initialize()
+                // Fetch data and update it to datatable every 2 seconds
+                setInterval(function() {
+                    getNewDroneDataToDB()
+                    updateDroneTableFromDB()
+                }, 2000)
+            });
+
+            // Executed as document has loaded, before the interval
+            function initialize() {
+                
+                // Create a datatable
+                var myTable = $('#drone-table').DataTable({
+                    responsive: true,
+                    paging: false,
+                    searching: false,
+                    ordering: true,
+                    columns: [
+                        {
+                            className: 'dt-control',
+                            orderable: false,
+                            data: null,
+                            defaultContent: '',
+                        },
+                        {data: 'violatingNDZ'},
+                        {data: 'lastViolated'},
+                        {data: 'closestTo'},
+                        {data: 'serialNumber'}
+                    ],
+                    order: [2, 'asc']
+                });
+
+                // EventListener for rows. Show / hide child rows
+                $('#drone-table tbody').on('click', 'td.dt-control', function () {
+                    var tr = $(this).closest('tr');
+                    var row = myTable.row(tr);
+            
+                    if (row.child.isShown()) {
+                        // This row is already open - close it
+                        row.child.hide();
+                        tr.removeClass('shown');
+                    } else {
+                        // Open this row
+                        row.child(format(row.data())).show();
+                        tr.addClass('shown');
+                    }
+                });
+
+                // Initialize datatable before first interval
+                getNewDroneDataToDB()
+                updateDroneTableFromDB()
+            }
+
+            // Trigger GET request in Django.
+            // New data is saved to the DB automatically in Django
+            function getNewDroneDataToDB() {
+                try {
+                    $.ajax({
+                        type: 'GET',
+                        url: 'getDrones',
+                    });
+                } catch (error) {
+                    console.log(error)
+                }
+            }
+
+            // Get drones from DB as JSON with ajax
+            function updateDroneTableFromDB() {
+                try {
+                    $.ajax({
+                        type: 'GET',
+                        url: 'getDronesFromDB',
+                        success: function(response) {
+                            // Get drones from response and update datatable
+                            updateDroneTable(response.drones)
+                        }
+                    });
+                } catch (error) {
+                    console.log(error)
+                }
+            }
+
+            // Update the datatable from an array
+            function updateDroneTable(drones) {
+                // Get table and rows
+                let table = $('#drone-table').DataTable();
+                let allRows = table.column( 4, {order:'index'} );
+
+                // Save valid drones for later
+                let validDrones = []
+                drones.forEach(drone => {
+                    validDrones.push(drone['serialNumber'])
+
+                    // Row index of 'drone'
+                    let index = allRows.data().indexOf(drone.serialNumber);
+
+                    // Format drone values from DB values to displayable values
+                    drone['lastViolated'] = drone['lastViolated'].toFixed(1)
+                    drone['closestTo'] = drone['closestTo'].toFixed(2)
+                    drone['violatingNDZ'] = drone['violatingNDZ'] ? 'Yes' : '-'
+
+                    if (index >= 0) {
+                        // Drone exists, update information
+                        table.row(index, {order:'index'}).data(drone).draw();
+                    } else {
+                        // New drone, create row
+                        table.row.add(drone).draw();
+                    } 
+                });
+
+                // Check for rows that are in  datatable but not in DB
+                for (let i=0; i<allRows.length; i++) {
+                    if (!validDrones.includes(allRows[i])) {
+                        // Row exists in datatable but drone not in DB, remove
+                        let index = allRows.data().indexOf(allRows[i]);
+                        table.row(index, {order:'index'}).remove().draw(false);
+                    }
+                }
+            }
+        </script>
+    </body>
+</html>
