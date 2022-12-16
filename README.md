@@ -50,3 +50,5 @@ html, body, body > :not(iframe) { background-color: #181a1b !important; border-c
 </drone>
 </capture>
 </report>
+Pilot info format (JSON)
+{"pilotId":"P-dkTvj_vKQQ","firstName":"Lionel","lastName":"Denesik","phoneNumber":"+210716097586","createdDt":"2022-09-10T12:31:41.457Z","email":"lionel.denesik@example.com"}
