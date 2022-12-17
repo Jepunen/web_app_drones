@@ -3,7 +3,7 @@ from .models import Drone
 from xml.etree import ElementTree as ET
 from datetime import datetime as dt
 from datetime import timedelta
-import math
+import math, pytz
 
 # Bird nest location
 ORIGON_X, ORIGON_Y = 250_000, 250_000
@@ -37,8 +37,8 @@ def updateDroneDataToDB(root):
     # Time of drone capture from XML
     time = root.find('capture')
     timeString = time.attrib['snapshotTimestamp']
-    droneDatetime = dt.strptime(timeString, "%Y-%m-%dT%H:%M:%S.%f%z")
-    timeNow = dt.now()
+    droneDatetime = dt.strptime(timeString, "%Y-%m-%dT%H:%M:%S.%f%z").replace(tzinfo=pytz.UTC)
+    timeNow = pytz.utc.localize(dt.now())
 
     newDrones = {}
     # New drones from XML -> Dictionary
@@ -78,7 +78,7 @@ def updateDroneDataToDB(root):
             if isDroneViolatingNDZ(updatedDrone['positionX'], updatedDrone['positionY']):
                 # Currently violating NDZ
                 oldDrone.violatingNDZ = True
-                oldDrone.lastViolated = float("%.1f" % round(((timeNow - droneDatetime.replace(tzinfo=None)).total_seconds() / 60), 1))
+                oldDrone.lastViolated = float("%.1f" % round(((timeNow - droneDatetime).total_seconds() / 60), 1))
             else:
                 # Currently not violating NDZ
                 oldDrone.violatingNDZ = False
@@ -86,12 +86,12 @@ def updateDroneDataToDB(root):
             # Remove the updated drone from new drones
             newDrones.pop(oldDrone.serialNumber)
 
-        if timeNow > oldDrone.datetime.replace(tzinfo=None) + timedelta(minutes=10):
+        if timeNow > oldDrone.datetime + timedelta(minutes=10):
             # Drone was last spotted over 10 minutes ago
             oldDrone.delete()
         else:
             # Drone spotted less than 10 minutes ago
-            oldDrone.lastViolated = round(((timeNow - oldDrone.datetime.replace(tzinfo=None)).total_seconds() / 60), 1)
+            oldDrone.lastViolated = round(((timeNow - oldDrone.datetime).total_seconds() / 60), 1)
             oldDrone.save()
 
     # Only new drones remain in newDrones
@@ -120,7 +120,7 @@ def updateDroneDataToDB(root):
                 newDrone['positionY']    = drone['positionY']
                 newDrone['closestTo']    = round(droneDisctanceFromNest(drone['positionX'], drone['positionY']) / 1000, 2)
                 newDrone['datetime']     = droneDatetime
-                newDrone['lastViolated'] = round(((timeNow - droneDatetime.replace(tzinfo=None)).total_seconds() / 60), 1)
+                newDrone['lastViolated'] = round(((timeNow - droneDatetime).total_seconds() / 60), 1)
                 newDrone['violatingNDZ'] = True
                 newDrone['serialNumber'] = drone['serialNumber']
 
