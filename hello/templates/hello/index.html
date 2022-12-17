@@ -172,14 +172,16 @@
                     } 
                 });
 
-                // Check for rows that are in  datatable but not in DB
-                for (let i=0; i<allRows.length; i++) {
-                    if (!validDrones.includes(allRows[i])) {
-                        // Row exists in datatable but drone not in DB, remove
-                        let index = allRows.data().indexOf(allRows[i]);
-                        table.row(index, {order:'index'}).remove().draw(false);
-                    }
-                }
+                // Check for rows in table that aren't in DB
+                table.rows().every( function( rowIdx, tableLoop, rowLoop ) {
+                    let data = this.data()
+                    try {
+                        if ( !validDrones.includes(data.serialNumber) ) {
+                            // Row exists in datatable but drone not in DB, remove
+                            table.row(rowIdx, {order:'index'}).remove().draw(false);
+                        }
+                    } catch {}
+                })
             }
         </script>
     </body>
